@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ldnns - MASTER PANEL</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { 
+            --adm-gray: #d1d1d1; 
+            --bg: #0a0a0a; 
+            --panel: #141414;
+            --accent: #444;
+            --green: #00ff88;
+            --red: #ff4444;
+            --blue: #0088ff;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', sans-serif; }
+        body { background: var(--bg); color: #fff; padding: 15px; }
+        .adm-container { max-width: 100%; margin: auto; }
+        
+        .header-adm { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 2px solid var(--accent); padding-bottom: 10px; }
+        .header-adm h1 { color: var(--adm-gray); font-size: 18px; text-transform: uppercase; }
+        
+        .generator-box { background: var(--panel); padding: 20px; border-radius: 12px; border: 1px solid var(--accent); margin-bottom: 20px; }
+        .input-group { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+        input, select { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; outline: none; }
+        
+        .btn-add { background: var(--adm-gray); color: #000; width: 100%; margin-top: 12px; padding: 14px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; text-transform: uppercase; }
+        .btn-gen { background: var(--accent); color: #fff; border: none; padding: 10px; border-radius: 8px; cursor: pointer; }
+
+        .table-wrapper { width: 100%; overflow-x: auto; background: var(--panel); border-radius: 12px; border: 1px solid var(--accent); }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #1a1a1a; padding: 12px; color: var(--adm-gray); font-size: 11px; text-transform: uppercase; text-align: left; }
+        td { padding: 15px; border-bottom: 1px solid #1a1a1a; vertical-align: middle; }
+        
+        .info-block { display: flex; flex-direction: column; gap: 4px; }
+        .label-text { font-size: 10px; color: #666; text-transform: uppercase; font-weight: bold; }
+        .value-text { font-size: 14px; color: #fff; }
+        .key-row { display: flex; align-items: center; gap: 10px; }
+        .key-style { font-family: monospace; color: var(--green); font-size: 14px; }
+        
+        .btn-copy { background: var(--blue); color: #fff; border: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; text-transform: uppercase; }
+        .cronometro { color: var(--green); font-family: monospace; font-weight: bold; font-size: 14px; }
+        .btn-del { color: var(--red); background: rgba(255, 68, 68, 0.1); border: 1px solid var(--red); cursor: pointer; font-size: 16px; padding: 10px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+<div class="adm-container">
+    <div class="header-adm">
+        <h1>Ldnns - MASTER PANEL</h1>
+        <span id="live-clock" style="font-family: monospace; color: #666; font-size: 12px;"></span>
+    </div>
+
+    <div class="generator-box">
+        <div class="input-group">
+            <input type="text" id="client-name" placeholder="Nome do Cliente">
+            <input type="text" id="new-key" placeholder="Senha de Acesso">
+        </div>
+        <div class="input-group">
+            <input type="number" id="key-limit" value="1">
+            <select id="key-duration">
+                <option value="0.000694">1 Minuto</option>
+                <option value="1">1 Dia</option>
+                <option value="30" selected>30 Dias</option>
+                <option value="9999">Permanente</option>
+            </select>
+            <button class="btn-gen" onclick="generateRandomKey()">GERAR KEY</button>
+        </div>
+        <button class="btn-add" onclick="saveKey()">ATIVAR ACESSO AGORA</button>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>DADOS DO CLIENTE</th>
+                    <th>CONTADOR</th>
+                    <th>AÇÃO</th>
+                </tr>
+            </thead>
+            <tbody id="key-list"></tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+<script>
+    const firebaseConfig = { databaseURL: "https://lucas88-f2458-default-rtdb.firebaseio.com/" };
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const database = firebase.database();
+
+    function copyToClipboard(text) {
+        const el = document.createElement('textarea');
+        el.value = text;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        alert("Copiado: " + text);
+    }
+
+    function generateRandomKey() {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        let result = "Ldnns-"; 
+        for (let i = 0; i < 6; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
+        document.getElementById('new-key').value = result;
+    }
+
+    function saveKey() {
+        const clientName = document.getElementById('client-name').value;
+        const keyValue = document.getElementById('new-key').value;
+        const durationValue = parseFloat(document.getElementById('key-duration').value);
+
+        if(!clientName || !keyValue) return alert("Preencha Nome e Senha!");
+
+        let expTimestamp = (durationValue === 9999) ? null : new Date().getTime() + (durationValue * 24 * 60 * 60 * 1000);
+        let dateLabel = expTimestamp ? new Date(expTimestamp).toLocaleString('pt-BR') : "PERMANENTE";
+
+        database.ref('keys/' + keyValue).set({
+            client: clientName, key: keyValue, limit: 1, used: 0, expirationTime: expTimestamp
+        }).then(() => {
+            // MENSAGEM ORGANIZADA AO ATIVAR
+            alert(`✅ ACESSO ATIVADO!\n\nCliente: ${clientName}\nValidade: ${dateLabel}\nSenha: ${keyValue}`);
+            
+            document.getElementById('client-name').value = "";
+            document.getElementById('new-key').value = "";
+        });
+    }
+
+    function deleteKey(key) {
+        if(confirm("Você deseja mesmo excluir essa KEY?")) {
+            database.ref('keys/' + key).remove();
+        }
+    }
+
+    database.ref('keys').on('value', (snapshot) => {
+        const tbody = document.getElementById('key-list');
+        tbody.innerHTML = "";
+        snapshot.forEach((child) => {
+            const item = child.val();
+            let dateLabel = item.expirationTime ? new Date(item.expirationTime).toLocaleString('pt-BR') : "PERMANENTE";
+            
+            tbody.innerHTML += `
+                <tr>
+                    <td>
+                        <div class="info-block">
+                            <span class="label-text">Nome do Cliente</span>
+                            <span class="value-text">${item.client}</span>
+                            
+                            <span class="label-text" style="margin-top:5px;">Sua Key</span>
+                            <div class="key-row">
+                                <span class="value-text key-style">${item.key}</span>
+                                <button class="btn-copy" onclick="copyToClipboard('${item.key}')">Copiar</button>
+                            </div>
+
+                            <span class="label-text" style="margin-top:5px;">Expira em</span>
+                            <span class="value-text" style="font-size:11px; color:#aaa;">${dateLabel}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="info-block">
+                            <span class="label-text">Tempo Restante</span>
+                            <span class="cronometro" data-time="${item.expirationTime}" data-id="${item.key}">--</span>
+                        </div>
+                    </td>
+                    <td>
+                        <button class="btn-del" onclick="deleteKey('${item.key}')">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                </tr>`;
+        });
+    });
+
+    setInterval(() => {
+        const agora = new Date().getTime();
+        document.querySelectorAll('.cronometro').forEach(el => {
+            const t = el.getAttribute('data-time');
+            if(!t || t === "null") { el.innerText = "PERMANENTE"; return; }
+            const diff = t - agora;
+            if(diff <= 0) { database.ref('keys/' + el.getAttribute('data-id')).remove(); return; }
+            
+            const d = Math.floor(diff/86400000);
+            const h = Math.floor((diff%86400000)/3600000);
+            const m = Math.floor((diff%3600000)/60000);
+            const s = Math.floor((diff%60000)/1000);
+            
+            el.innerText = `${d}d ${h}h ${m}m ${s}s`;
+        });
+        document.getElementById('live-clock').innerText = new Date().toLocaleTimeString();
+    }, 1000);
+</script>
+</body>
+</html>
